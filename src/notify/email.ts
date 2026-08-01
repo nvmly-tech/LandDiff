@@ -164,8 +164,18 @@ function buildText(report: ChangeReport): string {
 export class EmailNotifier implements Notifier {
   readonly name = "email" as const;
 
+  /**
+   * Логин и пароль обязательны наравне с хостом.
+   *
+   * Иначе наполовину заполненный .env выглядит настроенным, и каждое
+   * изменение оборачивается попыткой отправки и отказом сервера — вместо
+   * одного внятного предупреждения на старте. Релеи без авторизации таким
+   * образом не поддерживаются осознанно: ни один из провайдеров, под которые
+   * это писалось, их не предлагает.
+   */
   configured(): boolean {
-    return Boolean(settings().host);
+    const config = settings();
+    return Boolean(config.host && config.user && config.pass);
   }
 
   async sendChange(report: ChangeReport, landing: LandingConfig): Promise<void> {

@@ -54,7 +54,7 @@ function checkChannels(): void {
     logger.warn("Telegram не настроен: не заданы TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID");
   }
   if (!email.configured()) {
-    logger.warn("Почта не настроена: не задан SMTP_HOST");
+    logger.warn("Почта не настроена: нужны SMTP_HOST, SMTP_USER и SMTP_PASS (или SMTP_PASS_FILE)");
   }
 }
 
