@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>Тестовый лендинг LandDiff</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "DejaVu Sans", Arial, sans-serif; color: #111827; background: #fff; }
+    section { padding: 60px 80px; border-bottom: 1px solid #e5e7eb; }
+    h1 { font-size: 44px; margin: 0 0 16px; }
+    h2 { font-size: 30px; margin: 0 0 12px; }
+    p { font-size: 18px; line-height: 1.6; margin: 0 0 12px; max-width: 760px; }
+    .price { font-size: 36px; font-weight: bold; color: #16a34a; }
+    .cookie { position: fixed; bottom: 0; left: 0; right: 0; background: #111827; color: #fff; padding: 18px 24px; }
+    .ticker { color: #9ca3af; font-size: 14px; }
+    .filler { height: 900px; background: linear-gradient(#f9fafb, #eef2ff); }
+  </style>
+</head>
+<body>
+  <section id="hero">
+    <h1 class="hero__title">Курс по продажам</h1>
+    <p>Научим продавать без скидок и выгорания за восемь недель практики.</p>
+    <img src="hero-a.svg" alt="Обложка курса" width="600" height="300">
+  </section>
+
+  <section id="offer">
+    <h2>Тариф «Базовый»</h2>
+    <p class="price">Скидка 20%</p>
+    <p>Бесплатная доставка материалов по России.</p>
+    <a href="/checkout?plan=basic">Оформить подписку</a>
+  </section>
+
+  <!-- Проверка экранирования: этот текст не должен ломать разметку сообщения. -->
+  <section id="escaping">
+    <h2>Осторожно, разметка</h2>
+    <p>Итоговая &lt;b&gt;цена&lt;/b&gt; &amp; условия &lt;script&gt;alert(1)&lt;/script&gt;</p>
+  </section>
+
+  <!-- Динамика: должна отсекаться подтверждением, а не будить уведомлением. -->
+  <section id="dynamic">
+    <h2>Живой блок</h2>
+    <p class="ticker" id="clock">…</p>
+  </section>
+
+  <section id="tail">
+    <h2>Подвал</h2>
+    <p>Остались вопросы — напишите нам.</p>
+    <div class="filler"></div>
+    <p id="bottom-note">Последний блок страницы.</p>
+  </section>
+
+  <div class="cookie" id="cookie-banner">Мы используем куки. Согласны?</div>
+
+  <script>
+    // Меняется на каждой загрузке — ровно то, из-за чего нельзя доверять
+    // одному снимку и нужен повторный.
+    document.getElementById('clock').textContent = 'Онлайн: ' + Math.floor(Math.random() * 1000) + ' человек';
+  </script>
+</body>
+</html>

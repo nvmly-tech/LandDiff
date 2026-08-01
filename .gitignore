@@ -1,0 +1,12 @@
+node_modules/
+data/
+
+# Секреты и рабочая конфигурация: в репозитории лежат только *.example
+secrets/
+.env
+landings.yaml
+
+# Локальные разрешения Claude Code — у каждого свои
+.claude/settings.local.json
+
+*.log

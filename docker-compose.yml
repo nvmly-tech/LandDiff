@@ -1,0 +1,53 @@
+services:
+  landdiff:
+    build: .
+    image: landdiff:latest
+    container_name: landdiff
+    restart: unless-stopped
+
+    # Chromium кладёт свои буферы в /dev/shm, а по умолчанию его 64 МБ:
+    # на тяжёлых лендингах вкладка падает молча, посреди снимка.
+    shm_size: 1gb
+
+    volumes:
+      # Скриншоты и baseline лежат в каталоге проекта: их видно на месте,
+      # можно открыть любым просмотрщиком, не поднимая контейнер.
+      - ./data:/app/data
+      # Список лендингов правится снаружи и перечитывается на каждом прогоне —
+      # добавление нового лендинга не требует перезапуска.
+      - ./landings.yaml:/app/landings.yaml:ro
+
+    env_file:
+      - .env
+
+    environment:
+      TZ: ${TZ:-UTC}
+      # Вместо самого токена в окружении можно оставить путь к файлу — тогда
+      # в docker inspect попадёт только путь. Раскомментируйте вместе с
+      # блоками secrets ниже и положите токен в secrets/telegram_token:
+      # TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_token
+      # SMTP_PASS_FILE: /run/secrets/smtp_pass
+
+    # secrets:
+    #   - telegram_token
+    #   - smtp_pass
+
+    # Служба только открывает исходящие соединения и пишет в свой volume:
+    # ни одна capability ей не нужна. Sandbox Chromium от этого не страдает —
+    # он работает через user namespaces, а не через capabilities.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# secrets:
+#   telegram_token:
+#     file: ./secrets/telegram_token
+#   smtp_pass:
+#     file: ./secrets/smtp_pass
