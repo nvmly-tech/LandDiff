@@ -15,7 +15,7 @@ function configFile(body: string): string {
   return path;
 }
 
-test("схемы кроме http, https и file отвергаются", () => {
+test("схемы кроме http и https отвергаются", () => {
   // z.string().url() сам по себе пропускает и javascript:, и data:, и ftp:.
   for (const url of ["javascript:alert(1)", "data:text/html,<script>", "ftp://example.com/"]) {
     assert.throws(
@@ -26,11 +26,27 @@ test("схемы кроме http, https и file отвергаются", () => {
   }
 });
 
-test("http, https и file принимаются", () => {
-  for (const url of ["https://example.com/", "http://example.com/", "file:///tmp/page.html"]) {
+test("http и https принимаются", () => {
+  for (const url of ["https://example.com/", "http://example.com/"]) {
     const [landing] = loadLandings(configFile(`landings:\n  - name: Лендинг\n    url: "${url}"\n`));
     assert.equal(landing?.url, url);
   }
+});
+
+test("file:// закрыт по умолчанию и открывается только флагом", (t) => {
+  // file:///proc/self/environ отрисовал бы токен бота в скриншот и разослал
+  // его почтой, поэтому схема доступна лишь при явном ALLOW_FILE_URLS.
+  const config = configFile('landings:\n  - name: Лендинг\n    url: "file:///tmp/page.html"\n');
+
+  delete process.env.ALLOW_FILE_URLS;
+  assert.throws(() => loadLandings(config), ConfigError, "без флага file:// должен быть отвергнут");
+
+  t.after(() => {
+    delete process.env.ALLOW_FILE_URLS;
+  });
+  process.env.ALLOW_FILE_URLS = "1";
+  const [landing] = loadLandings(config);
+  assert.equal(landing?.url, "file:///tmp/page.html");
 });
 
 test("slug не выходит за пределы каталога данных", () => {

@@ -29,22 +29,38 @@ const commonFields = {
 };
 
 /**
+ * Тот же разбор «да/нет», что и в secrets.ts, но повторён здесь намеренно:
+ * config.ts не тянет за собой ни логгер, ни остальную обвязку, и юнит-тесты
+ * конфигурации остаются без транспорта pino.
+ */
+function fileUrlsAllowed(): boolean {
+  const raw = (process.env.ALLOW_FILE_URLS || "").trim().toLowerCase();
+  return Boolean(raw) && !["0", "false", "no", "off", "нет"].includes(raw);
+}
+
+/**
  * z.string().url() пропускает любую схему, включая javascript:, data: и ftp:.
- * Лендинг открывается в браузере, так что допустимы только http(s) и file
- * (последний — для фикстур и локальной отладки).
+ * Лендинг открывается в браузере, так что допустимы только http(s).
+ *
+ * file:// нужен для фикстур и локальной отладки, но в боевом режиме это
+ * чтение файлов процесса: `file:///proc/self/environ` отрисовал бы токен
+ * бота прямо в скриншот и разослал его почтой. Поэтому схема закрыта и
+ * открывается только явным ALLOW_FILE_URLS=1 — читаем на каждой проверке,
+ * чтобы флаг действовал без пересборки.
  */
 const pageUrl = z
   .string()
   .url()
   .refine(
     (value) => {
+      const allowed = fileUrlsAllowed() ? ["http:", "https:", "file:"] : ["http:", "https:"];
       try {
-        return ["http:", "https:", "file:"].includes(new URL(value).protocol);
+        return allowed.includes(new URL(value).protocol);
       } catch {
         return false;
       }
     },
-    { message: "допустимы только http://, https:// и file://" },
+    { message: "допустимы только http:// и https:// (file:// — при ALLOW_FILE_URLS=1)" },
   );
 
 const landingSchema = z.object({

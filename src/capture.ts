@@ -18,14 +18,23 @@ const MAX_COORDINATE = 200_000;
 const NETWORK_IDLE_TIMEOUT_MS = 15_000;
 
 /**
- * Sandbox Chromium остаётся включённым.
+ * Sandbox Chromium включается явно — сам он не включится.
  *
- * Мы ходим на чужие страницы, содержимое которых по определению не
- * контролируем, — это и есть тот случай, ради которого sandbox существует:
- * без него эксплойт рендерера сразу получает права нашего процесса и доступ
- * к data/ и к переменным окружения с токеном. Расхожий совет добавить
- * --no-sandbox относится к запуску от root; в нашем образе процесс идёт от
- * pwuser, и sandbox поднимается штатно, в том числе с cap_drop: ALL.
+ * У Playwright `chromiumSandbox` по умолчанию false: браузер запускается с
+ * --no-sandbox, renderer остаётся в общих с нами namespace и без своего
+ * seccomp-фильтра. Мы ходим на чужие страницы, содержимое которых по
+ * определению не контролируем, — это и есть тот случай, ради которого sandbox
+ * существует: без него эксплойт рендерера сразу получает права нашего
+ * процесса, а с ними data/ и переменные окружения с токеном.
+ *
+ * Поднимается sandbox через user namespaces и chroot внутрь них, а дефолтный
+ * seccomp-профиль Docker запрещает и CLONE_NEWUSER, и chroot всем, у кого нет
+ * CAP_SYS_ADMIN и CAP_SYS_CHROOT, — то есть и нам с cap_drop: ALL. Поэтому в
+ * compose подключён seccomp-chromium.json: тот же дефолтный профиль плюс эти
+ * два послабления, capability при этом не выдаются. Без профиля запуск падает
+ * с «Chromium sandboxing failed!» — заметно, а не втихую без защиты. Расхожий
+ * совет поставить --no-sandbox относится к запуску от root; у нас процесс идёт
+ * от pwuser, и обходить sandbox незачем.
  *
  * --disable-dev-shm-usage: /dev/shm по умолчанию мал, и вкладка падает на
  * тяжёлых страницах. В compose поднят shm_size, флаг оставлен на случай
@@ -33,6 +42,7 @@ const NETWORK_IDLE_TIMEOUT_MS = 15_000;
  */
 export async function launchBrowser(): Promise<Browser> {
   return chromium.launch({
+    chromiumSandbox: true,
     args: ["--disable-dev-shm-usage", "--disable-gpu", "--hide-scrollbars"],
   });
 }

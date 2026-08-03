@@ -9,6 +9,12 @@ services:
     # на тяжёлых лендингах вкладка падает молча, посреди снимка.
     shm_size: 1gb
 
+    # Зигота Chromium переживает закрытие браузера и достаётся PID 1, а он у
+    # нас — прикладной процесс, который не пожинает сирот: без init зомби
+    # копятся по два на прогон. Заодно tini доносит SIGTERM до службы, чтобы
+    # та успела снять лок.
+    init: true
+
     volumes:
       # Скриншоты и baseline лежат в каталоге проекта: их видно на месте,
       # можно открыть любым просмотрщиком, не поднимая контейнер.
@@ -22,23 +28,33 @@ services:
 
     environment:
       TZ: ${TZ:-UTC}
-      # Вместо самого токена в окружении можно оставить путь к файлу — тогда
-      # в docker inspect попадёт только путь. Раскомментируйте вместе с
-      # блоками secrets ниже и положите токен в secrets/telegram_token:
-      # TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_token
-      # SMTP_PASS_FILE: /run/secrets/smtp_pass
+      # Секреты приходят файлами, а не значениями: в окружении процесса и в
+      # docker inspect остаётся только путь. Сами файлы — в блоке secrets ниже.
+      TELEGRAM_BOT_TOKEN_FILE: /run/secrets/telegram_token
+      SMTP_PASS_FILE: /run/secrets/smtp_pass
 
-    # secrets:
-    #   - telegram_token
-    #   - smtp_pass
+    secrets:
+      - telegram_token
+      - smtp_pass
 
     # Служба только открывает исходящие соединения и пишет в свой volume:
-    # ни одна capability ей не нужна. Sandbox Chromium от этого не страдает —
-    # он работает через user namespaces, а не через capabilities.
+    # ни одна capability ей не нужна.
     cap_drop:
       - ALL
     security_opt:
       - no-new-privileges:true
+      # Sandbox Chromium изолирует renderer через user namespaces, а дефолтный
+      # seccomp-профиль Docker запрещает CLONE_NEWUSER всем без CAP_SYS_ADMIN —
+      # то есть и нам с cap_drop: ALL. Профиль ниже — тот же дефолтный, плюс
+      # разрешение создавать user namespace; всё остальное закрыто как было.
+      # Уберёте его — браузер не запустится вовсе (см. capture.ts).
+      - seccomp=./seccomp-chromium.json
+
+    # Границы на случай тяжёлой или враждебной страницы: без них вкладка,
+    # съевшая всю память, утащит за собой хост. Потолок процессов заодно
+    # ловит утечку, если однажды снова начнут копиться зиготы.
+    mem_limit: 3g
+    pids_limit: 512
 
     logging:
       driver: json-file
@@ -46,8 +62,8 @@ services:
         max-size: "10m"
         max-file: "3"
 
-# secrets:
-#   telegram_token:
-#     file: ./secrets/telegram_token
-#   smtp_pass:
-#     file: ./secrets/smtp_pass
+secrets:
+  telegram_token:
+    file: ./secrets/telegram_token
+  smtp_pass:
+    file: ./secrets/smtp_pass

@@ -20,4 +20,6 @@ COPY src ./src
 RUN mkdir -p /app/data && chown -R pwuser:pwuser /app
 USER pwuser
 
-CMD ["npx", "tsx", "src/index.ts"]
+# Напрямую node, а не `npx tsx`: тот разворачивался в цепочку npm → sh → node,
+# и SIGTERM от docker застревал в ней, не доходя до обработчика остановки.
+CMD ["node", "--import", "tsx", "src/index.ts"]
