@@ -2,26 +2,23 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 import { logger } from "../logger.js";
-import { env, envBool, maskSecret, secret } from "../secrets.js";
+import { env, envBool, secret } from "../secrets.js";
 import type { ChangeReport, FailureReport, LandingConfig, Notifier } from "../types.js";
 import { downscale, fitTelegramPhoto } from "../visual.js";
 import { changeLine, countsLine, escapeHtml, formatWhen, plural, truncate } from "./format.js";
+import { TelegramError, call, serialize } from "./telegram-transport.js";
+
+// Очередь, ретраи и вычистка токена живут в telegram-transport.ts — там же
+// они и проверены тестами. Здесь остаётся то, что специфично для наших
+// сообщений: их сборка, нарезка и загрузка картинок.
+export { mask } from "./telegram-transport.js";
 
 /** Bot API режет сообщения длиннее 4096 символов — берём с запасом. */
 const MAX_MESSAGE_CHARS = 3500;
-const SEND_ATTEMPTS = 3;
 const TEXT_TIMEOUT_MS = 15_000;
 const UPLOAD_TIMEOUT_MS = 120_000;
-/** Пауза между сообщениями в один чат: Bot API ограничивает частоту. */
-const SEND_GAP_MS = 1000;
 const MEDIA_GROUP_LIMIT = 10;
 const DEFAULT_API_BASE = "https://api.telegram.org";
-/**
- * Токен уезжает в путь запроса, поэтому адрес API не может быть произвольным.
- * fetch в Node умеет ещё data: и blob:, и опечатка в переменной окружения
- * увела бы секрет в URL, который никуда не идёт, но попадает в журнал.
- */
-const ALLOWED_API_SCHEMES = ["http:", "https:"];
 
 interface TelegramSettings {
   token: string;
@@ -37,96 +34,6 @@ function settings(): TelegramSettings {
     apiBase: (env("TELEGRAM_API_BASE", DEFAULT_API_BASE) || DEFAULT_API_BASE).replace(/\/+$/, ""),
     sendDocuments: envBool("TELEGRAM_SEND_DOCUMENTS", true),
   };
-}
-
-/**
- * Токен лежит в пути URL, и он всплывает в текстах сетевых ошибок. Единая
- * точка очистки на выходе: что бы ни попало в сообщение, в журнал уйдёт
- * уже без секрета.
- */
-export function mask(text: string, token: string): string {
-  return maskSecret(text, token);
-}
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-// Отправки выстраиваются в очередь: параллельные проверки лендингов иначе
-// упрутся в ограничение частоты и получат 429 на ровном месте.
-let queue: Promise<unknown> = Promise.resolve();
-
-function serialize<T>(task: () => Promise<T>): Promise<T> {
-  const result = queue.then(task, task);
-  queue = result.then(() => sleep(SEND_GAP_MS), () => sleep(SEND_GAP_MS));
-  return result;
-}
-
-class TelegramError extends Error {}
-
-function retryAfterFrom(body: unknown): number {
-  const seconds = (body as { parameters?: { retry_after?: number } })?.parameters?.retry_after;
-  return Math.min(30, Math.max(1, Number(seconds) || 1)) * 1000;
-}
-
-function describe(body: unknown): string {
-  const description = (body as { description?: string })?.description;
-  return description ? String(description).slice(0, 200) : "";
-}
-
-/**
- * Один вызов Bot API с ретраями. При 429 пауза ровно та, которую назвал
- * сервер: угадывать её самим — верный способ получить следующий 429.
- */
-async function call(
-  method: string,
-  build: () => { body: BodyInit; headers?: Record<string, string> },
-  config: TelegramSettings,
-  timeoutMs: number,
-): Promise<void> {
-  let scheme: string;
-  try {
-    scheme = new URL(config.apiBase).protocol;
-  } catch {
-    throw new TelegramError("TELEGRAM_API_BASE не разбирается как адрес");
-  }
-  if (!ALLOWED_API_SCHEMES.includes(scheme)) {
-    throw new TelegramError("TELEGRAM_API_BASE должен начинаться с http:// или https://");
-  }
-
-  const url = `${config.apiBase}/bot${config.token}/${method}`;
-
-  for (let attempt = 1; attempt <= SEND_ATTEMPTS; attempt += 1) {
-    try {
-      const { body, headers } = build();
-      const response = await fetch(url, {
-        method: "POST",
-        body,
-        headers,
-        signal: AbortSignal.timeout(timeoutMs),
-      });
-
-      if (response.ok) return;
-
-      const payload = await response.json().catch(() => ({}));
-      if (response.status === 429 && attempt < SEND_ATTEMPTS) {
-        await sleep(retryAfterFrom(payload));
-        continue;
-      }
-      // 4xx кроме 429 — это неверный токен, чат или картинка: ретрай не спасёт.
-      if (response.status < 500 && response.status !== 429) {
-        throw new TelegramError(`${method}: Telegram ответил ${response.status} — ${describe(payload)}`);
-      }
-      if (attempt === SEND_ATTEMPTS) {
-        throw new TelegramError(`${method}: Telegram ответил ${response.status} — ${describe(payload)}`);
-      }
-      await sleep(2000 * attempt);
-    } catch (error) {
-      if (error instanceof TelegramError) throw error;
-      if (attempt === SEND_ATTEMPTS) {
-        throw new TelegramError(`${method}: ${mask(String(error), config.token)}`);
-      }
-      await sleep(2000 * attempt);
-    }
-  }
 }
 
 function json(payload: Record<string, unknown>) {

@@ -9,4 +9,7 @@ config/landings.yaml
 # Локальные разрешения Claude Code — у каждого свои
 .claude/settings.local.json
 
+# Граф знаний: пересобирается из исходников одной командой
+graphify-out/
+
 *.log
