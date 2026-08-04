@@ -18,7 +18,7 @@ let running = false;
  * Один прогон по расписанию.
  *
  * Конфигурация перечитывается каждый раз: добавить лендинг — значит поправить
- * landings.yaml, перезапускать контейнер для этого не нужно.
+ * config/landings.yaml, перезапускать контейнер для этого не нужно.
  */
 async function tick(reason: string): Promise<void> {
   if (running) {

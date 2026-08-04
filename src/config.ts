@@ -7,7 +7,15 @@ import { z } from "zod";
 
 import type { LandingConfig } from "./types.js";
 
-export const CONFIG_PATH = resolve(process.env.LANDINGS_FILE || "landings.yaml");
+/**
+ * Файл лежит в отдельном каталоге, и в контейнер тот подключается целиком.
+ *
+ * Одиночный bind-mount привязан к inode, а редакторы обычно сохраняют файл
+ * записью во временный с переименованием: inode меняется, и контейнер до
+ * перезапуска продолжает видеть старую копию. Смонтированный каталог
+ * переименования внутри себя показывает, поэтому правка доезжает сразу.
+ */
+export const CONFIG_PATH = resolve(process.env.LANDINGS_FILE || "config/landings.yaml");
 
 const channel = z.enum(["email", "telegram"]);
 
@@ -155,13 +163,13 @@ function merge(
 export class ConfigError extends Error {}
 
 /**
- * Читает landings.yaml. Вызывается на каждом прогоне, поэтому правка файла
+ * Читает config/landings.yaml. Вызывается на каждом прогоне, поэтому правка
  * подхватывается без перезапуска контейнера.
  */
 export function loadLandings(path: string = CONFIG_PATH): LandingConfig[] {
   if (!existsSync(path)) {
     throw new ConfigError(
-      `Файл ${path} не найден. Скопируйте landings.example.yaml в landings.yaml и заполните.`,
+      `Файл ${path} не найден. Скопируйте config/landings.example.yaml в config/landings.yaml и заполните.`,
     );
   }
 

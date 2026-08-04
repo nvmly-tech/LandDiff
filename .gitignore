@@ -4,7 +4,7 @@ data/
 # Секреты и рабочая конфигурация: в репозитории лежат только *.example
 secrets/
 .env
-landings.yaml
+config/landings.yaml
 
 # Локальные разрешения Claude Code — у каждого свои
 .claude/settings.local.json

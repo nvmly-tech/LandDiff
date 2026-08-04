@@ -308,7 +308,7 @@ export async function runAll(landings: LandingConfig[], options: RunOptions = {}
   const summary: RunSummary = { checked: 0, changed: 0, unchanged: 0, unstable: 0, baselines: 0, errors: 0 };
 
   if (active.length === 0) {
-    logger.warn("в landings.yaml нет ни одного включённого лендинга");
+    logger.warn("в config/landings.yaml нет ни одного включённого лендинга");
     return summary;
   }
 

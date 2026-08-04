@@ -94,7 +94,7 @@ async function commandTestMail(): Promise<void> {
     [...new Set(landings.flatMap((landing) => landing.emailTo))];
 
   if (to.length === 0) {
-    throw new ConfigError("некому слать: заполните emailTo в landings.yaml или передайте --to=адрес");
+    throw new ConfigError("некому слать: заполните emailTo в config/landings.yaml или передайте --to=адрес");
   }
 
   await email.sendTest(to, "Если вы видите это письмо, SMTP настроен верно.");
