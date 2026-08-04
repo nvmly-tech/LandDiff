@@ -124,6 +124,66 @@ function clampSnapshot(raw: Snapshot): Snapshot {
   };
 }
 
+/** Пауза перед повторной попыткой навигации. */
+const NAVIGATION_RETRY_DELAY_MS = 3000;
+
+/** Отказ, от повтора которого ничего не изменится. */
+class PermanentNavigationError extends Error {}
+
+/**
+ * Навигация с повторами.
+ *
+ * Площадка лендинга может отвечать через раз: TCP-коннект молча виснет, и
+ * goto упирается в таймаут целиком, хотя сайт жив и следующая попытка через
+ * секунду проходит. Одна попытка на прогон делает проверку заложником такой
+ * площадки — при доступности в 15% почти каждый прогон заканчивался бы
+ * ложной тревогой.
+ *
+ * Повторяем сетевые отказы и 5xx. 4xx не трогаем: адрес ведёт не туда или нас
+ * блокируют, и повтор только растянет прогон, ничего не изменив. Наружу в
+ * случае неудачи уходит ошибка последней попытки — в ней написано, на чём
+ * именно всё встало.
+ */
+export async function navigate(
+  page: Page,
+  landing: LandingConfig,
+  retryDelayMs: number = NAVIGATION_RETRY_DELAY_MS,
+): Promise<void> {
+  const attempts = Math.max(1, landing.navigationAttempts);
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const response = await page.goto(landing.url, {
+        waitUntil: "domcontentloaded",
+        timeout: landing.navigationTimeoutMs,
+      });
+
+      const status = response?.status() ?? 0;
+      if (status >= 400 && status < 500) {
+        throw new PermanentNavigationError(`сервер ответил HTTP ${status}`);
+      }
+      if (status >= 500) {
+        throw new Error(`сервер ответил HTTP ${status}`);
+      }
+      if (attempt > 1) {
+        logger.info({ slug: landing.slug, attempt }, "страница открылась с повторной попытки");
+      }
+      return;
+    } catch (error) {
+      if (error instanceof PermanentNavigationError) throw error;
+      if (attempt === attempts) throw error;
+
+      logger.warn(
+        { slug: landing.slug, attempt, attempts, err: String(error).split("\n")[0] },
+        "страница не открылась, повторяем",
+      );
+      // Обычная пауза, а не page.waitForTimeout: та завязана на живость
+      // страницы, и на подвисшей вкладке мы получили бы не ту ошибку.
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+    }
+  }
+}
+
 async function stabilize(page: Page, landing: LandingConfig): Promise<void> {
   await page.addStyleTag({ content: FREEZE_CSS });
 
@@ -181,14 +241,7 @@ export async function capturePage(browser: Browser, landing: LandingConfig): Pro
 
     // domcontentloaded + отдельное ожидание затишья: на networkidle в goto
     // навсегда зависают страницы с поллингом или открытым websocket.
-    const response = await page.goto(landing.url, {
-      waitUntil: "domcontentloaded",
-      timeout: landing.navigationTimeoutMs,
-    });
-    const status = response?.status() ?? 0;
-    if (status >= 400) {
-      throw new Error(`сервер ответил HTTP ${status}`);
-    }
+    await navigate(page, landing);
 
     await stabilize(page, landing);
 

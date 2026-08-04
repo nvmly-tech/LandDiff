@@ -100,6 +100,7 @@ export interface LandingConfig {
   confirm: boolean;
   confirmDelayMs: number;
   navigationTimeoutMs: number;
+  navigationAttempts: number;
   region?: string;
   waitForSelector?: string;
   ignoreSelectors: string[];
