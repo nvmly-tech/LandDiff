@@ -1,0 +1,35 @@
+version: 2
+
+updates:
+  # npm. Playwright намеренно закреплён точной версией в package.json: тег
+  # образа в Dockerfile обязан ей соответствовать, иначе Chromium не стартует.
+  # Поэтому его обновления приходят отдельным PR, чтобы не проскочить мимо
+  # правки Dockerfile вместе с прочей мелочью.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      dev-and-types:
+        patterns:
+          - "@types/*"
+          - typescript
+          - tsx
+    ignore:
+      # Мажорные обновления playwright требуют ручной сверки с тегом и digest
+      # базового образа — предлагать их автоматически смысла нет.
+      - dependency-name: playwright
+        update-types: [version-update:semver-major]
+
+  # Docker: подскажет, когда у закреплённого тега появится новый digest.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Сами экшены в CI тоже стареют и тоже пиннятся.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Раз в неделю без изменений в коде: уязвимость в зависимости появляется
+  # сама по себе, без единого коммита с нашей стороны.
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      # ci, а не install: ставит ровно то, что записано в package-lock.json.
+      # Браузер не нужен — тесты работают на заглушках и на фикстурах.
+      - name: Установка зависимостей
+        run: npm ci
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+
+      - name: Проверка типов
+        run: npm run typecheck
+
+      - name: Тесты
+        run: npm test
+
+      # Не блокирует сборку: свежая уязвимость в транзитивной зависимости не
+      # повод останавливать работу над кодом, но знать о ней надо.
+      - name: Аудит зависимостей
+        run: npm audit --omit=dev
+        continue-on-error: true
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Образ собирается, но не запускается: проверяем, что Dockerfile цел и
+      # закреплённый digest ещё доступен в реестре.
+      - name: Сборка образа
+        run: docker build -t landdiff:ci .
