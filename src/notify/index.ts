@@ -1,5 +1,5 @@
 import { logger } from "../logger.js";
-import { maskSecret, secret } from "../secrets.js";
+import { scrubSecrets } from "../secrets.js";
 import type { ChangeReport, FailureReport, LandingConfig, Notifier } from "../types.js";
 import { email } from "./email.js";
 import { telegram } from "./telegram.js";
@@ -8,17 +8,6 @@ export { email } from "./email.js";
 export { telegram } from "./telegram.js";
 
 const CHANNELS: Record<"email" | "telegram", Notifier> = { email, telegram };
-
-/**
- * Последний рубеж перед журналом и history.jsonl.
- *
- * Токен бота вычищается ещё в самом канале, но сюда приходят и ошибки
- * nodemailer, а он в текст падения кладёт то, что ответил сервер. Чистим оба
- * секрета в одной точке, чтобы не гадать, какая библиотека что напишет.
- */
-function sanitize(message: string): string {
-  return maskSecret(maskSecret(message, secret("TELEGRAM_BOT_TOKEN")), secret("SMTP_PASS"));
-}
 
 export interface DispatchResult {
   sent: string[];
@@ -49,7 +38,7 @@ async function dispatch(
       result.sent.push(name);
       logger.info({ slug: landing.slug, channel: name }, `${label} отправлено`);
     } catch (error) {
-      const message = sanitize(error instanceof Error ? error.message : String(error));
+      const message = scrubSecrets(error instanceof Error ? error.message : String(error));
       result.errors[name] = message;
       logger.error({ slug: landing.slug, channel: name, err: message }, `${label} не отправлено`);
     }

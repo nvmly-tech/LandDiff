@@ -87,3 +87,22 @@ export function maskSecret(text: string, value: string): string {
   }
   return masked;
 }
+
+/** Всё, что нельзя показывать в журнале. Расширяется здесь, а не по местам. */
+const SECRET_NAMES = ["TELEGRAM_BOT_TOKEN", "SMTP_PASS"] as const;
+
+/**
+ * Последний рубеж перед журналом, history.jsonl и выводом в консоль.
+ *
+ * Каналы чистят свои секреты сами, но сюда приходят и чужие ошибки: nodemailer
+ * кладёт в текст падения ответ сервера, а стек любого исключения может нести
+ * URL с токеном в пути. Перечень секретов держим одной точкой — иначе
+ * очередной добавленный секрет забудут внести в каждое место логирования.
+ */
+export function scrubSecrets(text: string): string {
+  let scrubbed = text;
+  for (const name of SECRET_NAMES) {
+    scrubbed = maskSecret(scrubbed, secret(name));
+  }
+  return scrubbed;
+}

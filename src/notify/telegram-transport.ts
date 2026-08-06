@@ -18,8 +18,19 @@ const SEND_GAP_MS = 1000;
  * Токен уезжает в путь запроса, поэтому адрес API не может быть произвольным.
  * fetch в Node умеет ещё data: и blob:, и опечатка в переменной окружения
  * увела бы секрет в URL, который никуда не идёт, но попадает в журнал.
+ *
+ * https разрешён всегда. http — только до петлевого адреса: единственный
+ * законный повод для него это собственный прокси Bot API рядом со службой,
+ * а там трафик не покидает машину. http до чужого хоста означал бы токен
+ * бота открытым текстом по сети, и отличить опечатку от намерения нельзя —
+ * поэтому запрещаем.
  */
-const ALLOWED_API_SCHEMES = ["http:", "https:"];
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+function isLoopback(url: URL): boolean {
+  const host = url.hostname.toLowerCase();
+  return LOOPBACK_HOSTS.has(host) || host.startsWith("127.");
+}
 
 export class TelegramError extends Error {}
 
@@ -75,14 +86,20 @@ export function describe(body: unknown): string {
  * потом обнаружить, что схема не та, — значит уже отдать секрет наружу.
  */
 export function apiUrl(config: TransportConfig, method: string): string {
-  let scheme: string;
+  let parsed: URL;
   try {
-    scheme = new URL(config.apiBase).protocol;
+    parsed = new URL(config.apiBase);
   } catch {
     throw new TelegramError("TELEGRAM_API_BASE не разбирается как адрес");
   }
-  if (!ALLOWED_API_SCHEMES.includes(scheme)) {
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
     throw new TelegramError("TELEGRAM_API_BASE должен начинаться с http:// или https://");
+  }
+  if (parsed.protocol === "http:" && !isLoopback(parsed)) {
+    throw new TelegramError(
+      "TELEGRAM_API_BASE по http:// допустим только для петлевого адреса — " +
+        "иначе токен бота уйдёт по сети открытым текстом. Используйте https://",
+    );
   }
   return `${config.apiBase}/bot${config.token}/${method}`;
 }

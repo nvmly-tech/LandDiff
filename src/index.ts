@@ -7,7 +7,7 @@ import { CONFIG_PATH, ConfigError, loadLandings } from "./config.js";
 import { logger } from "./logger.js";
 import { email, telegram } from "./notify/index.js";
 import { acquireLock, releaseLock, runAll } from "./runner.js";
-import { env, envBool } from "./secrets.js";
+import { env, envBool, scrubSecrets } from "./secrets.js";
 
 const SCHEDULE = env("CRON_SCHEDULE", "0 * * * *");
 const TIMEZONE = env("TZ", "UTC");
@@ -42,7 +42,8 @@ async function tick(reason: string): Promise<void> {
       // прогон подхватит исправленный файл.
       logger.error(error.message);
     } else {
-      logger.error({ err: error instanceof Error ? error.stack : String(error) }, "прогон провалился");
+      // Стек чистим: он может нести URL с токеном в пути или ответ SMTP-сервера.
+      logger.error({ err: scrubSecrets(error instanceof Error ? (error.stack ?? error.message) : String(error)) }, "прогон провалился");
     }
   } finally {
     running = false;

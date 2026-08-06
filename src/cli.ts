@@ -7,6 +7,7 @@ import { CONFIG_PATH, ConfigError, loadLandings } from "./config.js";
 import { logger } from "./logger.js";
 import { email, telegram } from "./notify/index.js";
 import { acquireLock, releaseLock, runAll } from "./runner.js";
+import { scrubSecrets } from "./secrets.js";
 import { landingDir, orphanedDirs } from "./store.js";
 import type { LandingConfig } from "./types.js";
 
@@ -157,7 +158,9 @@ main().catch((error) => {
   if (error instanceof ConfigError) {
     logger.error(error.message);
   } else {
-    logger.error({ err: error instanceof Error ? error.stack : String(error) }, "команда не выполнена");
+    // Стек чистим: `test-mail` и `test-telegram` идут мимо диспетчера каналов,
+    // и ошибка провайдера доехала бы сюда с секретом внутри.
+    logger.error({ err: scrubSecrets(error instanceof Error ? (error.stack ?? error.message) : String(error)) }, "команда не выполнена");
   }
   process.exitCode = 1;
 });

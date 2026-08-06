@@ -120,10 +120,33 @@ test("токен подставляется в путь только после 
   }
 });
 
-test("http и https для адреса API принимаются", () => {
-  for (const apiBase of ["https://api.telegram.org", "http://localhost:8081"]) {
+test("https принимается для любого хоста", () => {
+  for (const apiBase of ["https://api.telegram.org", "https://tg.example.com:8443"]) {
     const url = apiUrl({ token: TOKEN, apiBase }, "sendPhoto");
     assert.equal(url, `${apiBase}/bot${TOKEN}/sendPhoto`);
+  }
+});
+
+test("http принимается только до петлевого адреса", () => {
+  // Единственный законный повод для http — свой прокси Bot API рядом со
+  // службой: там трафик не покидает машину.
+  for (const apiBase of ["http://localhost:8081", "http://127.0.0.1:8081", "http://127.5.5.5"]) {
+    const url = apiUrl({ token: TOKEN, apiBase }, "sendPhoto");
+    assert.equal(url, `${apiBase}/bot${TOKEN}/sendPhoto`);
+  }
+});
+
+test("http до чужого хоста отвергается — токен ушёл бы открытым текстом", () => {
+  for (const apiBase of ["http://api.telegram.org", "http://192.168.1.10:8081", "http://tg.example.com"]) {
+    assert.throws(
+      () => apiUrl({ token: TOKEN, apiBase }, "sendMessage"),
+      (error: unknown) => {
+        assert.ok(error instanceof TelegramError);
+        assert.match(String(error), /открытым текстом/);
+        return true;
+      },
+      `должен быть отвергнут: ${apiBase}`,
+    );
   }
 });
 

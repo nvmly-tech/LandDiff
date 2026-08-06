@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import { ConfigError, loadLandings, slugify } from "../src/config.js";
 import { escapeHtml } from "../src/notify/format.js";
-import { maskSecret } from "../src/secrets.js";
+import { maskSecret, scrubSecrets } from "../src/secrets.js";
 
 function configFile(body: string): string {
   const dir = mkdtempSync(join(tmpdir(), "landdiff-sec-"));
@@ -75,6 +75,37 @@ test("кавычки экранируются — значение попада�
   assert.ok(!escaped.includes("<"));
   const attribute = `<a href="${escaped}">`;
   assert.equal(attribute.match(/"/g)?.length, 2, "в атрибуте ровно две кавычки — свои");
+});
+
+test("scrubSecrets вычищает и токен бота, и пароль почты из одного текста", (t) => {
+  // Стек исключения может нести сразу оба: URL Bot API с токеном в пути и
+  // ответ SMTP-сервера. Обработчики верхнего уровня прогоняют стек через это.
+  const token = "123456:AAHsecrettokenvalue";
+  const pass = "smtp-app-password";
+  t.after(() => {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.SMTP_PASS;
+  });
+  process.env.TELEGRAM_BOT_TOKEN = token;
+  process.env.SMTP_PASS = pass;
+
+  const stack = `Error: fail at https://api.telegram.org/bot${token}/sendMessage\n  auth=${pass}`;
+  const scrubbed = scrubSecrets(stack);
+
+  assert.ok(!scrubbed.includes(token), "токен остался в тексте");
+  assert.ok(!scrubbed.includes("AAHsecrettokenvalue"), "хвост токена остался в тексте");
+  assert.ok(!scrubbed.includes(pass), "пароль остался в тексте");
+  assert.ok(scrubbed.includes("api.telegram.org"), "вычистили лишнее — контекст ошибки потерян");
+});
+
+test("scrubSecrets не трогает текст, когда секреты не заданы", (t) => {
+  t.after(() => {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    delete process.env.SMTP_PASS;
+  });
+  delete process.env.TELEGRAM_BOT_TOKEN;
+  delete process.env.SMTP_PASS;
+  assert.equal(scrubSecrets("обычная ошибка сети"), "обычная ошибка сети");
 });
 
 test("пустой секрет не превращает весь текст в звёздочки", () => {
