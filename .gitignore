@@ -2,9 +2,25 @@ node_modules/
 data/
 
 # Секреты и рабочая конфигурация: в репозитории лежат только *.example
+#
+# Правила намеренно по образцу, а не по точному имени. Путь к конфигурации
+# задаётся переменной LANDINGS_FILE, то есть назвать файл иначе — штатный
+# сценарий; при точечном правиле такой файл молча попал бы в коммит вместе
+# с адресами площадок и почтой получателей.
 secrets/
+
 .env
-config/landings.yaml
+.env.*
+!.env.example
+
+config/*.yaml
+config/*.yml
+!config/*.example.yaml
+!config/*.example.yml
+
+# Старое расположение до переезда в config/ — на случай, если файл вернётся.
+/landings.yaml
+/landings.yml
 
 # Локальные разрешения Claude Code — у каждого свои
 .claude/settings.local.json
