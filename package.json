@@ -2,6 +2,7 @@
   "name": "landdiff",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "Почасовой мониторинг лендингов: детект изменений по DOM, скриншоты до/после с подсветкой, уведомления в почту и Telegram",
   "engines": {

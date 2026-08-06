@@ -176,3 +176,9 @@ unset ALLOW_FILE_URLS
 ## Обновление Playwright
 
 Тег образа в `Dockerfile` обязан совпадать с версией пакета `playwright` в `package.json`: в образе лежит ревизия Chromium, привязанная к конкретной версии библиотеки. Меняете пакет — правьте тег.
+
+## Лицензия
+
+MIT — см. [LICENSE](LICENSE).
+
+Исключение одно: `seccomp-chromium.json` производен от профилей Playwright и Moby и остаётся под Apache License 2.0. Что именно в нём изменено и зачем — в [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
