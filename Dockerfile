@@ -18,16 +18,23 @@ WORKDIR /app
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV NODE_ENV=production
 
-COPY package*.json ./
+# Владелец назначается ДО установки зависимостей, и дальше всё идёт от
+# pwuser — непривилегированного пользователя, который уже есть в образе
+# Playwright (под root Chromium ругается на sandbox).
+#
+# Раньше здесь стоял `chown -R /app` после npm ci, и это стоило 77 МБ на
+# ровном месте: смена владельца переписывает файл целиком, а в оверлейной
+# файловой системе переписанный файл уходит в новый слой — весь node_modules
+# лежал в образе дважды. Теперь chown касается двух каталогов, а не тысяч
+# файлов, и npm ci сразу пишет от нужного имени.
+RUN mkdir -p /app/data && chown pwuser:pwuser /app /app/data
+USER pwuser
+
+COPY --chown=pwuser:pwuser package*.json ./
 RUN npm ci --omit=dev
 
-COPY tsconfig.json ./
-COPY src ./src
-
-# Каталог создаётся заранее и отдаётся непривилегированному пользователю,
-# который уже есть в образе Playwright: под root Chromium ругается на sandbox.
-RUN mkdir -p /app/data && chown -R pwuser:pwuser /app
-USER pwuser
+COPY --chown=pwuser:pwuser tsconfig.json ./
+COPY --chown=pwuser:pwuser src ./src
 
 # Напрямую node, а не `npx tsx`: тот разворачивался в цепочку npm → sh → node,
 # и SIGTERM от docker застревал в ней, не доходя до обработчика остановки.
