@@ -12,6 +12,7 @@ import { dispatchChange, dispatchFailure } from "./notify/index.js";
 import { envInt } from "./secrets.js";
 import {
   DATA_DIR,
+  DIR_MODE,
   appendHistory,
   createChangeDir,
   prune,
@@ -51,7 +52,7 @@ const LOCK_PATH = join(DATA_DIR, ".lock");
 const LOCK_STALE_MS = 2 * 60 * 60 * 1000;
 
 export async function acquireLock(): Promise<boolean> {
-  await mkdir(DATA_DIR, { recursive: true });
+  await mkdir(DATA_DIR, { recursive: true, mode: DIR_MODE });
   if (existsSync(LOCK_PATH)) {
     try {
       const held = JSON.parse(await readFile(LOCK_PATH, "utf8")) as { pid: number; startedAt: string };

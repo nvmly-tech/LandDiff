@@ -7,6 +7,17 @@ import type { HistoryRecord, Snapshot } from "./types.js";
 
 export const DATA_DIR = resolve(process.env.DATA_DIR || "data");
 
+/**
+ * Права на создаваемые каталоги: владельцу всё, группе чтение, остальным ничего.
+ *
+ * В data/ лежат скриншоты и разобранное содержимое чужих страниц — на них
+ * попадают и цены, и персональные данные, если те есть на лендинге. Прав по
+ * умолчанию (755) хватило бы любому пользователю машины, чтобы всё это
+ * прочитать. Закрываем именно каталог: без права входа в него содержимое
+ * недоступно независимо от прав на отдельные файлы.
+ */
+export const DIR_MODE = 0o750;
+
 /** Сколько каталогов с изменениями хранить на лендинг. */
 const KEEP_CHANGES = 48;
 /** Потолок строк в history.jsonl — дальше файл обрезается с головы. */
@@ -74,7 +85,7 @@ export async function writeBaseline(
   const target = baselineDir(slug);
   const staging = `${target}.new`;
   await rm(staging, { recursive: true, force: true });
-  await mkdir(staging, { recursive: true });
+  await mkdir(staging, { recursive: true, mode: DIR_MODE });
 
   const meta: BaselineMeta = { hash, capturedAt: snapshot.capturedAt, url: snapshot.url };
   await Promise.all([
@@ -89,12 +100,12 @@ export async function writeBaseline(
 
 export async function createChangeDir(slug: string, stamp: string): Promise<string> {
   const dir = join(changesDir(slug), stamp);
-  await mkdir(dir, { recursive: true });
+  await mkdir(dir, { recursive: true, mode: DIR_MODE });
   return dir;
 }
 
 export async function appendHistory(slug: string, record: HistoryRecord): Promise<void> {
-  await mkdir(landingDir(slug), { recursive: true });
+  await mkdir(landingDir(slug), { recursive: true, mode: DIR_MODE });
   await appendFile(historyPath(slug), `${JSON.stringify(record)}\n`);
 }
 
@@ -107,7 +118,7 @@ export async function readState(slug: string): Promise<LandingState> {
 }
 
 export async function writeState(slug: string, state: LandingState): Promise<void> {
-  await mkdir(landingDir(slug), { recursive: true });
+  await mkdir(landingDir(slug), { recursive: true, mode: DIR_MODE });
   await writeFile(statePath(slug), JSON.stringify(state, null, 2));
 }
 
