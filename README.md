@@ -96,6 +96,8 @@ docker compose logs -f
 
 Служба открывает в браузере чужие страницы, содержимое которых не контролирует, и держит при себе токен бота и пароль от почты. Отсюда основные решения:
 
+Нашли уязвимость — [SECURITY.md](SECURITY.md): там канал для приватного сообщения и перечень того, что уязвимостью здесь не считается.
+
 **Sandbox Chromium включён явно — сам он не включается.** У Playwright опция `chromiumSandbox` по умолчанию `false`, и браузер запускается с `--no-sandbox`: renderer остаётся в общих со службой namespace и без собственного seccomp-фильтра. Без sandbox эксплойт рендерера на скомпрометированном лендинге сразу получает доступ к `data/` и к секретам процесса. Поэтому в [`launchBrowser`](src/capture.ts) стоит `chromiumSandbox: true`.
 
 Одного флага мало. Sandbox изолирует renderer через user namespaces, а дефолтный seccomp-профиль Docker запрещает `CLONE_NEWUSER` и `chroot` всем, у кого нет `CAP_SYS_ADMIN` и `CAP_SYS_CHROOT` — то есть и нам с `cap_drop: ALL`. Поэтому рядом лежит `seccomp-chromium.json`: профиль Playwright (дефолтный профиль Docker плюс создание user namespace) с одной добавленной строкой на `chroot`; всё остальное закрыто как было. Уберёте профиль из `docker-compose.yml` — браузер не запустится вовсе, с `Chromium sandboxing failed!`. Это намеренно: лучше явная поломка, чем тихая работа без защиты.
