@@ -16,7 +16,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v7
         with:
@@ -45,9 +45,23 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      # Образ собирается, но не запускается: проверяем, что Dockerfile цел и
-      # закреплённый digest ещё доступен в реестре.
       - name: Сборка образа
         run: docker build -t landdiff:ci .
+
+      # Сборки мало. Три вещи ломаются молча и не видны ни сборке, ни тестам:
+      # рассинхрон версии playwright с ревизией браузера в образе, отключённый
+      # sandbox и сломанное извлечение содержимого через page.evaluate. Проба
+      # проходит настоящий путь съёмки теми же флагами и профилем seccomp,
+      # что и docker-compose. Запуск через tsx: проба импортирует наш capture.ts.
+      - name: Образ работоспособен — sandbox и извлечение
+        run: |
+          docker run --rm \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --security-opt seccomp=./seccomp-chromium.json \
+            --shm-size 1g \
+            -v "$PWD/scripts/smoke.mjs:/app/smoke.mjs:ro" \
+            -w /app landdiff:ci \
+            node --import tsx smoke.mjs
