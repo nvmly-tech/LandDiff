@@ -47,7 +47,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Образ собирается, но не запускается: проверяем, что Dockerfile цел и
-      # закреплённый digest ещё доступен в реестре.
       - name: Сборка образа
         run: docker build -t landdiff:ci .
+
+      # Сборки мало. Версия playwright и ревизия браузера в образе задаются в
+      # разных файлах, и рассинхрон не ломает ни сборку, ни тесты — те браузер
+      # не поднимают. Без запуска CI был бы зелёным на образе, который не
+      # стартует. Заодно проверяется, что sandbox действительно поднялся:
+      # флаги и seccomp-профиль здесь те же, что в docker-compose.
+      - name: Образ запускается и sandbox активен
+        run: |
+          docker run --rm \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --security-opt seccomp=./seccomp-chromium.json \
+            --shm-size 1g \
+            -v "$PWD/scripts/smoke.mjs:/app/smoke.mjs:ro" \
+            -w /app landdiff:ci \
+            node smoke.mjs
