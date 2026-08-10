@@ -33,7 +33,7 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@types/node": "^22.19.1",
+    "@types/node": "^26.1.2",
     "@types/nodemailer": "^7.0.4",
     "@types/pngjs": "^6.0.5",
     "typescript": "^5.9.3"
