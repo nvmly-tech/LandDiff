@@ -22,6 +22,7 @@ import {
   writeBaseline,
   writeState,
 } from "./store.js";
+import type { LandingState } from "./store.js";
 import type { Change, ChangeReport, HistoryRecord, LandingConfig, Snapshot } from "./types.js";
 import { focusCrops, markScreenshot, marksForAfter, marksForBefore, pixelDiff } from "./visual.js";
 
@@ -161,6 +162,29 @@ async function confirm(
   return { snapshot: second.snapshot, screenshot: second.screenshot, hash, stable: hash === first.hash };
 }
 
+/**
+ * Пора ли сообщать о серии неудач.
+ *
+ * Раньше здесь стояло строгое равенство `failures === threshold`, и это
+ * теряло уведомления в самом важном случае. Площадка и сеть падают заодно:
+ * на третьей неудаче отправка сама упирается в ту же неработающую сеть,
+ * попытка сгорает, счётчик уходит дальше — и повтора не случается никогда.
+ * На практике так и вышло: 48 неудач подряд и ни одного доставленного
+ * сообщения.
+ *
+ * Поэтому условие «не меньше порога и об этой серии ещё не сообщили».
+ * Спама не будет: серию закрывает `failureAlertSentAt`, а его ставят только
+ * после того, как хоть один канал принял сообщение.
+ */
+export function shouldSendFailureAlert(
+  state: LandingState,
+  failures: number,
+  threshold: number,
+  notify: boolean,
+): boolean {
+  return notify && failures >= threshold && !state.failureAlertSentAt;
+}
+
 async function noteFailure(landing: LandingConfig, error: unknown, notify: boolean): Promise<HistoryRecord> {
   const message = error instanceof Error ? error.message : String(error);
   const state = await readState(landing.slug);
@@ -175,7 +199,7 @@ async function noteFailure(landing: LandingConfig, error: unknown, notify: boole
 
   // Сообщаем только когда лендинг лёг всерьёз: одиночный таймаут не повод
   // будить, а вот три подряд — уже похоже на поломку.
-  if (notify && failures === threshold) {
+  if (shouldSendFailureAlert(state, failures, threshold, notify)) {
     const result = await dispatchFailure(
       {
         slug: landing.slug,
@@ -189,7 +213,18 @@ async function noteFailure(landing: LandingConfig, error: unknown, notify: boole
     );
     record.notified = result.sent;
     if (Object.keys(result.errors).length > 0) record.notifyErrors = result.errors;
-    await writeState(landing.slug, { failures, lastError: message, lastFailureNotifiedAt: record.ts });
+
+    // Серию закрываем только при настоящей доставке. Отметка после упавшей
+    // отправки — ровно тот баг, из-за которого уведомление терялось насовсем.
+    const delivered = result.sent.length > 0;
+    if (!delivered) {
+      logger.warn({ slug: landing.slug, failures }, "сообщить о поломке не удалось, повторим на следующем прогоне");
+    }
+    await writeState(landing.slug, {
+      failures,
+      lastError: message,
+      ...(delivered ? { failureAlertSentAt: record.ts } : {}),
+    });
   } else {
     await writeState(landing.slug, { ...state, failures, lastError: message });
   }

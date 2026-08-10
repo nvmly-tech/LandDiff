@@ -40,7 +40,19 @@ interface BaselineMeta {
 export interface LandingState {
   failures: number;
   lastError?: string;
-  lastFailureNotifiedAt?: string;
+  /**
+   * Когда об этой серии неудач удалось сообщить.
+   *
+   * Проставляется только если хотя бы один канал принял сообщение. Поле
+   * закрывает серию: пока его нет, служба продолжает пытаться дозвониться.
+   * Сбрасывается вместе со счётчиком, когда лендинг снова открывается.
+   *
+   * Прежнее поле называлось lastFailureNotifiedAt и ставилось даже после
+   * неудачной отправки. Имя сменено намеренно: в старых state.json остаётся
+   * прежний ключ, новый код его не видит и досылает потерянное уведомление
+   * вместо того, чтобы молчать дальше.
+   */
+  failureAlertSentAt?: string;
 }
 
 export const landingDir = (slug: string): string => join(DATA_DIR, slug);
