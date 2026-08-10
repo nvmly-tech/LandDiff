@@ -28,14 +28,14 @@
     "playwright": "1.62.1",
     "pngjs": "^7.0.0",
     "sharp": "^0.35.3",
-    "tsx": "^4.20.6",
+    "tsx": "^4.23.10",
     "yaml": "^2.8.1",
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@types/node": "^22.19.1",
+    "@types/node": "^26.1.2",
     "@types/nodemailer": "^7.0.4",
     "@types/pngjs": "^6.0.5",
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   }
 }
